@@ -9,18 +9,22 @@
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
 /**
- * class slider constructor
+ * slider constructor
  */
-class InSliderConstructor {
+class InSlider {
     constructor(options) {
         this._el = options.element;
-        this._hasNavs = options.navigation;
-        this._hasPagination = options.pagination;
+        this._hasNavs = options.navigation || null;
+        this._hasPagination = options.pagination || null;
         this._slideDuration = options.slideDuration;
         this._hasAutoplay = options.autoplay;
         this._autoplayDuration = options.autoplayDuration;
-        this._hasParallaxContent = options.parallaxContent;
+        this._hasParallaxContent = options.parallaxContent || null;
         this._hasCounter = options.counter;
+
+        this._counter = new Counter({
+            el: 0
+        });
 
         this._slides = new Slides({
             el: this._el.querySelector('.slides')
@@ -28,62 +32,168 @@ class InSliderConstructor {
 
         this._items = new Items({
             el: this._el.querySelectorAll('.slides > div'),
-            caption: this._el.querySelectorAll('.slides .caption')
+            caption: this._el.querySelectorAll('.slides .caption'),
+            duration: this._slideDuration,
+            c: this._counter
         });
 
-        this._counter = new Counter({
-            el: 0
-        });
+        if (this._hasCounter) {
+            this._counterNum = new NewCounterNum({
+                element: this._el,
+                el: document.createElement('div'),
+                symbol: '/',
+                c: this._counter
+            });
+        }
 
-        this._counterNum = new NewCounterNum({
-            el: document.createElement('div'),
-            symbol: '&#92'
-        });
-
-        this._navElement = new NavElement({
-            el: document.createElement('div'),
-            navLeft: document.createElement('span'),
-            navRight: document.createElement('span')
-        });
+        if (this._hasParallaxContent) {
+            this._parallaxContent = new ParallaxContent({
+                el: this._el.querySelectorAll('.slides .caption')
+            });
+        }
 
         this._panel = new Panel({
+            element: this._el,
             download: document.createElement('div'),
             author: document.createElement('div')
         });
 
-        this._pagElement = new PagElement({
-            el: document.createElement('div')
-        });
+        if (this._hasPagination) {
+            this._pagination = new Pagination({
+                element: this._el,
+                el: document.createElement('div'),
+                counter: this._counterNum,
+                panel: this._panel,
+                c: this._counter
+            });
+        }
+
+        if (this._hasNavs) {
+            this._navElement = new NavElement({
+                element: this._el,
+                el: document.createElement('div'),
+                counter: this._counterNum,
+                panel: this._panel,
+                pagination: this._pagination,
+                c: this._counter
+            });
+        }
+
+        if (this._hasAutoplay) {
+            this._autoPlay = new AutoPlay({
+                element: this._el,
+                duration: this._autoplayDuration,
+                counter: this._counterNum,
+                panel: this._panel,
+                pagination: this._pagination,
+                c: this._counter
+            });
+        }
+    }
+}
+
+/**
+ * base component
+ */
+class BaseComponent{
+    constructor(options) {
+        this._el = options.element;
     }
 
-    /**
-     * function resize slider
-     */
-    _setHeight() {
+    _items() {
+        let items = this._element.querySelectorAll('.slides > div');
+        return items;
+    }
+
+    _reloadImgAttribute() {
+        let elems = Array.prototype.slice.call(this._items());
+
+        elems.forEach(( item, i, items ) => {
+
+            item.removeAttribute( 'data-slider', 'active' );
+            items[this._counter._el].setAttribute( 'data-slider', 'active' );
+            item.style.visibility = 'hidden';
+            items[this._counter._el].style.visibility = 'visible';
+            item.style.opacity = 0;
+            items[this._counter._el].style.opacity = 1;
+
+        });
+    };
+
+    _counterNumber() {
+        this._counterElement._el.innerHTML = ( Number(this._counter._el) + 1 ) + ' / ' + this._items().length;
+    }
+
+    _clickPag() {
+        let li = Array.prototype.slice.call(this._pagination._el.querySelectorAll('li'));
+
+        li.forEach(( item, i, items ) => {
+
+            item.removeAttribute( 'data-slider', 'active' );
+            items[this._counter._el].setAttribute( 'data-slider', 'active' );
+
+        });
+    };
+
+    //function set panel attribute
+    _setAttrPanel() {
+        let hrefImg, authorAttr = '';
+
+        hrefImg = this._items()[this._counter._el].getAttribute('data-slide');
+        authorAttr = this._items()[this._counter._el].getAttribute('data-author');
+
+        this._panel._download.innerHTML = `<a href=${hrefImg} title="Download photo" download>download</a>`;
+        this._panel._author.innerHTML = authorAttr;
+    };
+}
+
+/**
+ * component slider
+ */
+class Slides{
+    constructor(options) {
+        this._el = options.el;
+
+        this._setHeight(options.el);
+
+        this._resizeWindow(options.el);
+    }
+
+    //init slide height
+    _setHeight(slides) {
         let innerHeight = window.innerHeight,
             innerWidth = window.innerWidth;
 
-        this._slides._el.style.height = innerHeight + 'px';
-        this._slides._el.style.width = innerWidth + 'px';
+        this._el.style.height = innerHeight + 'px';
+        this._el.style.width = innerWidth + 'px';
     };
 
-    /**
-     * function item counter
-     */
-    _setNumCounter() {
-        if ( !this._hasCounter ) return;
+    //resize window
+    _resizeWindow(slides) {
+        window.addEventListener('resize', this._setHeight.bind(this));
+    }
+}
 
-        this._counterNum._el.className = 'counter';
-        this._el.appendChild(this._counterNum._el);
-        this._counterNum._el.innerHTML = (this._counter._el + 1) + ` ${this._counterNum._symbol} ` + this._items._el.length;
-        this._el.appendChild(this._counterNum._el);
-    };
+/**
+ * component items
+ */
+class Items extends BaseComponent{
+    constructor(options) {
+        super(options);
 
-    /**
-     * function img attribute
-     */
-    _setImgAttributes() {
-        let elems = Array.prototype.slice.call(this._items._el),
+        this._el = options.el;
+
+        this._caption = options.caption;
+
+        this._duration = options.duration;
+
+        this._counter = options.c;
+
+        this._setImgAttribute();
+    }
+
+    _setImgAttribute() {
+        let elems = Array.prototype.slice.call(this._el),
             attr = '',
             milliseconds = 1000;
 
@@ -93,7 +203,7 @@ class InSliderConstructor {
             items[this._counter._el].style.visibility = 'visible';
             item.style.opacity = 0;
             items[this._counter._el].style.opacity = 1;
-            item.style.transition = 'all ' + this._slideDuration/milliseconds + 's ease';
+            item.style.transition = 'all ' + this._duration/milliseconds + 's ease';
 
 
             if ( !isMobile ) {
@@ -106,90 +216,192 @@ class InSliderConstructor {
 
             //attribute active img
             items[this._counter._el].setAttribute( 'data-slider', 'active' );
+        });
+    };
+}
+
+/**
+ * component parallax
+ */
+class ParallaxContent {
+    constructor(options) {
+        this._el = options.el;
+
+        this._setParallaxContent();
+
+        this._scrollWindow();
+    }
+
+    //function parallax
+    _setParallaxContent() {
+        let variation = 200,
+            scrollTop = window.pageYOffset,
+            windowHeight = window.innerHeight,
+            calc = 1-(scrollTop / (windowHeight - variation));
+
+        let elems = Array.prototype.slice.call(this._el);
+
+        elems.forEach( ( item ) => {
+
+            item.style.opacity = Math.min(Math.max(calc.toFixed(2), 0), 1);
+            item.style.transform = 'translate3d(0, ' + (scrollTop / 2 + 'px') + ' , 0)';
 
         });
     };
 
-    /**
-     * function navigation append
-     */
-    _setNavigation() {
-        this._navElement._el.classList.add('navs');
-        this._navElement._el.appendChild(this._navElement._navLeft).setAttribute( 'class', 'nav nav_left' );
-        this._navElement._el.appendChild(this._navElement._navRight).setAttribute( 'class', 'nav nav_right' );
+    //function onscroll
+    _scrollWindow() {
+        window.addEventListener('scroll', this._setParallaxContent.bind(this));
+    };
+}
 
-        if ( this._hasNavs ) {
-            this._el.appendChild(this._navElement._el);
-        }
+/**
+ * component bottom counter
+ */
+class NewCounterNum extends BaseComponent{
+    constructor(options) {
+        super(options);
+
+        this._element = options.element;
+
+        this._el = options.el;
+
+        this._symbol = options.symbol;
+
+        this._counter = options.c;
+
+        this._append();
+    }
+
+    _append() {
+        this._el.className = 'counter';
+        this._el.innerHTML = (this._counter._el + 1) + ' / ' + this._items().length;
+        this._element.appendChild(this._el);
+    }
+}
+
+/**
+ * component navigation
+ */
+class NavElement extends BaseComponent{
+    constructor(options) {
+        super(options);
+
+        this._element = options.element;
+
+        this._el = options.el;
+
+        this._counterElement = options.counter;
+
+        this._panel = options.panel;
+
+        this._pagination = options.pagination;
+
+        this._counter = options.c;
+
+        this._setNavigation();
+
+        this._setAttrPanel();
+
+        this._click();
+
+        this._scrollWindow();
+    }
+
+    _setNavigation() {
+        let navLeft = document.createElement('span'),
+            navRight = navLeft.cloneNode(true);
+
+        this._el.classList.add('navs');
+
+        this._el.appendChild(navLeft).setAttribute( 'class', 'nav nav_left' );
+        this._el.appendChild(navRight).setAttribute( 'class', 'nav nav_right' );
+
+        this._element.appendChild(this._el);
     };
 
-    /**
-     * function navigation click
-     */
-    _getDirection(str) {
-        let prevDirection = () => {
+    _click() {
+        this._el.addEventListener('click', this._getClosest.bind(this));
+    };
+
+    //function delegate navigation
+    _getClosest() {
+        if(event.target.closest('.nav_left')) {
             this._counter._el--;
 
             if ( this._counter._el < 0 ) {
-                this._counter._el = this._items._el.length - 1;
+                this._counter._el = this._items().length - 1;
             }
-        };
 
-        let nextDirection = () => {
+        } else if (event.target.closest('.nav_right')) {
             this._counter._el++;
 
-            if ( this._counter._el > this._items._el.length - 1 ) {
+            if ( this._counter._el > this._items().length - 1 ) {
                 this._counter._el = 0;
             }
-        };
-
-        if ( str === 'left' ) {
-            prevDirection();
-        } else {
-            nextDirection();
         }
 
-        let elems = Array.prototype.slice.call(this._items._el);
-
-        elems.forEach(( item, i, items ) => {
-
-            item.removeAttribute( 'data-slider', 'active' );
-            items[this._counter._el].setAttribute( 'data-slider', 'active' );
-            item.style.visibility = 'hidden';
-            items[this._counter._el].style.visibility = 'visible';
-            item.style.opacity = 0;
-            items[this._counter._el].style.opacity = 1;
-            this._counterNum._el.innerHTML = (this._counter._el + 1) + ` ${this._counterNum._symbol} ` + items.length;
-
-        });
+        this._reloadImgAttribute();
+        this._counterNumber();
+        this._setAttrPanel();
+        this._clickPag();
     };
 
-    /**
-     * function pagination append
-     */
+    //function parallax navigation
+    _setParallaxNavs() {
+        let scrollTop = window.pageYOffset;
+
+        this._el.style.transform = 'translate3d(0, ' + (scrollTop / 2 + 'px') + ' , 0)';
+    };
+
+    //function onscroll
+    _scrollWindow() {
+        window.addEventListener('scroll', this._setParallaxNavs.bind(this));
+    };
+}
+
+/**
+ * component pagination
+ */
+class Pagination extends BaseComponent{
+    constructor(options) {
+        super(options);
+
+        this._element = options.element;
+
+        this._el = options.el;
+
+        this._counterElement = options.counter;
+
+        this._panel = options.panel;
+
+        this._counter = options.c;
+
+        this._setPagination();
+
+        this._setPaginationClick();
+
+        this._setAttrPanel();
+    }
+
     _setPagination() {
         let html = '<ul>';
 
-        for (let i = 0; i < this._items._el.length; i++) {
+        for (let i = 0; i < this._items().length; i++) {
             html += `<li data-index='${i}'></li>`;
         }
 
         html += '</ul>';
 
-        this._pagElement._el.classList.add('pagination');
+        this._el.classList.add('pagination');
 
-        this._pagElement._el.innerHTML = html;
+        this._el.innerHTML = html;
 
-        if ( this._hasPagination ) {
-            this._el.appendChild(this._pagElement._el);
-        }
+        this._element.appendChild(this._el);
     };
 
-    /**
-     * function pagination click
-     */
     _setPaginationClick() {
-        let li = Array.prototype.slice.call(this._pagElement._el.querySelectorAll('li'));
+        let li = Array.prototype.slice.call(this._el.querySelectorAll('li'));
 
         let checkActiveClass = () => {
             for ( var i = 0; i < li.length; i++ ) {
@@ -203,198 +415,96 @@ class InSliderConstructor {
             items[this._counter._el].setAttribute( 'data-slider', 'active' );
 
             item.addEventListener('click', ( event ) => {
-                    if ( item.closest('[data-slider="active"]') ) return;
+                if ( item.closest('[data-slider="active"]') ) return;
 
-                    checkActiveClass();
-                    event.target.setAttribute( 'data-slider', 'active' );
-                    this._counter._el = event.target.getAttribute( 'data-index') - 1;
-                    this._getDirection();
-                    this._getImgAttributes();
-                }
-            );
-
+                checkActiveClass();
+                event.target.setAttribute( 'data-slider', 'active' );
+                this._counter._el = event.target.getAttribute( 'data-index');  //-1
+                this._reloadImgAttribute();
+                this._setAttrPanel();
+                this._counterNumber();
+            });
         });
     };
-
-    /**
-     * function autoplay slider
-     */
-    _setAutoplay() {
-        if ( !this._hasAutoplay ) return;
-
-        setInterval( () => {
-            this._getDirection('right');
-            this._getImgAttributes();
-            this._setPaginationClick();
-        }, this._autoplayDuration);
-    };
-
-    /**
-     * function append top panel
-     */
-    _setTopPanel() {
-        let topPanelBtns = document.createElement('div');
-
-        topPanelBtns.className = 'top_panel_btns';
-        this._panel._download.className = 'download';
-        this._panel._author.className = 'author';
-
-        topPanelBtns.appendChild(this._panel._author);
-        topPanelBtns.appendChild(this._panel._download);
-        this._el.appendChild(topPanelBtns);
-    };
-
-    /**
-     * function get attribute img
-     */
-    _getImgAttributes() {
-        let hrefImg, authorAttr, captionAttr, flexAlign, textAlign = '';
-
-        hrefImg = this._items._el[this._counter._el].getAttribute('data-slide');
-        authorAttr = this._items._el[this._counter._el].getAttribute('data-author');
-
-        this._panel._download.innerHTML = `<a href=${hrefImg} title="Download photo" download>download</a>`;
-        this._panel._author.innerHTML = authorAttr;
-
-        captionAttr = this._items._caption[this._counter._el].getAttribute('data-alignment');
-
-        //align-items
-        switch (captionAttr) {
-            case 'left' :
-                flexAlign = 'flex-start';
-                textAlign = 'left';
-                break;
-            case 'right' :
-                flexAlign = 'flex-end';
-                textAlign = 'right';
-                break;
-            case 'center' :
-            default :
-                flexAlign = 'center';
-                textAlign = 'center';
-                break;
-        }
-
-        this._items._caption[this._counter._el].style.alignItems = flexAlign;
-        this._items._caption[this._counter._el].style.textAlign = textAlign;
-    };
-
-    /**
-     * function opacity on scroll
-     */
-    _getParallaxContent() {
-        let variation = 200,
-            scrollTop = window.pageYOffset,
-            windowHeight = window.innerHeight,
-            calc = 1-(scrollTop / (windowHeight - variation));
-
-        if ( !this._hasParallaxContent ) return;
-
-        this._navElement._el.style.transform = 'translate3d(0, ' + (scrollTop / 2 + 'px') + ' , 0)';
-
-        let elems = Array.prototype.slice.call(this._items._caption);
-
-        elems.forEach( ( item ) => {
-
-            item.style.opacity = Math.min(Math.max(calc.toFixed(2), 0), 1);
-            item.style.transform = 'translate3d(0, ' + (scrollTop / 2 + 'px') + ' , 0)';
-
-        });
-    };
-
-    /**
-     * public method
-     */
-    init() {
-        this._setHeight();
-        this._setNumCounter();
-        this._setImgAttributes();
-        this._setNavigation();
-        this._setPagination();
-        this._setTopPanel();
-        this._getImgAttributes();
-        this._setAutoplay();
-        this._setPaginationClick();
-
-        let leftClick = () => {
-            this._getDirection('left');
-            this._getImgAttributes();
-            this._setPaginationClick();
-        };
-
-        let rightClick = () => {
-            this._getDirection('right');
-            this._getImgAttributes();
-            this._setPaginationClick();
-        };
-
-        let resizeWindow = () => {
-            this._setHeight();
-        };
-
-        let scrollWindow = () => {
-            this._getParallaxContent();
-        };
-
-        this._navElement._navLeft.addEventListener('click', leftClick);
-        this._navElement._navRight.addEventListener('click', rightClick);
-
-        window.addEventListener('resize', resizeWindow);
-
-        window.addEventListener('scroll', scrollWindow);
-
-        console.log( 'Slider init' );
-    };
 }
 
-class Slides {
-    constructor(options) {
-        this._el = options.el;
-    }
-}
-
-class Items {
-    constructor(options) {
-        this._el = options.el;
-        this._caption = options.caption;
-    }
-}
-
-class NewCounterNum {
-    constructor(options) {
-        this._el = options.el;
-        this._symbol = options.symbol;
-    }
-}
-
-class NavElement {
-    constructor(options) {
-        this._el = options.el;
-        this._navLeft = options.navLeft;
-        this._navRight = options.navRight;
-    }
-}
-
+/**
+ * component counter
+ */
 class Counter {
     constructor(options) {
         this._el = options.el;
     }
 }
 
+/**
+ * component header panel
+ */
 class Panel {
     constructor(options) {
+        this._element = options.element;
+
         this._download = options.download;
+
         this._author = options.author;
+
+        this._setTopPanel();
     }
+
+    _setTopPanel() {
+        let topPanelBtns = document.createElement('div');
+
+        topPanelBtns.className = 'top_panel_btns';
+        this._download.className = 'download';
+        this._author.className = 'author';
+
+        topPanelBtns.appendChild(this._author);
+        topPanelBtns.appendChild(this._download);
+        this._element.appendChild(topPanelBtns);
+    };
 }
 
-class PagElement {
+/**
+ * component autoplay
+ */
+class AutoPlay extends BaseComponent{
     constructor(options) {
-        this._el = options.el;
+        super(options);
+
+        this._element = options.element;
+
+        this._duration = options.duration;
+
+        this._counterElement = options.counter;
+
+        this._panel = options.panel;
+
+        this._pagination = options.pagination;
+
+        this._counter = options.c;
+
+       this._setAutoplay();
     }
+
+    _setAutoplay() {
+
+        setInterval( () => {
+            this._counter._el++;
+
+            if ( this._counter._el > this._items().length - 1 ) {
+                this._counter._el = 0;
+            }
+
+            this._reloadImgAttribute();
+            this._counterNumber();
+            this._setAttrPanel();
+            this._clickPag();
+
+        }, this._duration);
+    };
 }
 
-new InSliderConstructor({
+new InSlider({
     element: document.querySelector('#inslider'),
     navigation: true,
     pagination: true,
@@ -403,4 +513,4 @@ new InSliderConstructor({
     autoplayDuration: 6000,
     parallaxContent: true,
     counter: true
-}).init();
+});
