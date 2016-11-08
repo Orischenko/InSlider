@@ -1,7 +1,6 @@
 /**
  * Plugin Name: InSlider
  * Author: Orischenko Alexander
- * Reviewer: Mikhail Grinko
  */
 
 'use strict';
